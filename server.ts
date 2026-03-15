@@ -10,14 +10,32 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
+// API routes go here
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', env: process.env.NODE_ENV });
+});
+
+app.get('/api/debug', (req, res) => {
+  res.json({
+    hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+    hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+    appUrl: process.env.APP_URL,
+    nodeEnv: process.env.NODE_ENV
+  });
+});
+
 const PORT = 3000;
-const CONFIG_FILE = path.join(process.cwd(), 'config.json');
+// Vercel has a read-only filesystem, so we must use /tmp for any file writes
+const CONFIG_FILE = process.env.NODE_ENV === 'production' 
+  ? path.join('/tmp', 'config.json')
+  : path.join(process.cwd(), 'config.json');
 
 function loadConfig() {
   if (fs.existsSync(CONFIG_FILE)) {
     try {
       return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
     } catch (e) {
+      console.error('Error reading config file:', e);
       return { income: 11000 };
     }
   }
@@ -25,7 +43,11 @@ function loadConfig() {
 }
 
 function saveConfig(config: any) {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  try {
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  } catch (e) {
+    console.error('Error saving config file:', e);
+  }
 }
 
 const getOAuth2Client = (req: express.Request) => {
@@ -80,7 +102,9 @@ async function ensureSettingsSheet(sheets: any, spreadsheetId: string) {
 
 app.get('/api/auth/url', (req, res) => {
   try {
+    console.log('Generating auth URL...');
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.error('Missing Google credentials in environment');
       return res.status(400).json({ error: 'MISSING_CREDENTIALS' });
     }
     const oauth2Client = getOAuth2Client(req);
@@ -92,10 +116,11 @@ app.get('/api/auth/url', (req, res) => {
       ],
       prompt: 'consent'
     });
+    console.log('Auth URL generated successfully');
     res.json({ url });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating auth URL:', error);
-    res.status(500).json({ error: 'Failed to generate auth URL' });
+    res.status(500).json({ error: 'Failed to generate auth URL: ' + error.message });
   }
 });
 
@@ -529,4 +554,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.NODE_ENV !== 'production') {
+  startServer();
+}
+
+export default app;

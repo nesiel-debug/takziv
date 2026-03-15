@@ -236,15 +236,16 @@ export default function App() {
       
       if (!res.ok) {
         if (data.error === 'MISSING_CREDENTIALS') {
-          alert('שגיאה: חסרים מפתחות התחברות לגוגל (Client ID / Secret). אנא הוסף אותם בהגדרות האפליקציה (Settings -> Secrets) ונסה שוב.');
+          alert('שגיאה: חסרים מפתחות התחברות לגוגל (Client ID / Secret). אנא הוסף אותם ב-Vercel תחת Environment Variables.');
           return;
         }
-        throw new Error('Failed to get auth URL');
+        throw new Error(data.error || 'Failed to get auth URL');
       }
       
       window.open(data.url, 'oauth_popup', 'width=600,height=700');
-    } catch (e) {
-      alert('שגיאה בהתחברות לגוגל שיטס');
+    } catch (e: any) {
+      console.error('Connection error:', e);
+      alert('שגיאה בהתחברות לגוגל שיטס: ' + (e.message || 'שגיאה לא ידועה'));
     }
   };
 
